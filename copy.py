@@ -91,35 +91,32 @@ class Interpreter(object):
         else:
             self.error()
 
+
+    def term(self):
+        """Return INTEGER Token value"""
+        Token = self.current_token
+        self.eat(INTEGER)
+        return Token.value        
+
     def expr(self):
+        """Parser / Interpreter"""
         """expr -> INTEGER PLUS INTEGER"""
         """expr -> INTEGER MINUS INTEGER"""
         # set current token to the first taken from the input
         self.current_token = self.get_next_token()
-        # we expect the current token to be a single-digit integer
-        left = self.current_token
-        self.eat(INTEGER)
-        # we expect the current token to be a '+' token
-        op = self.current_token
-        if op.type == (PLUS):
-            self.eat(PLUS)
-        else:
-            self.eat(MINUS)
-        # we expect the current token to be a single-digit integer
-        right = self.current_token
-        self.eat(INTEGER)
-        # after the above call, the self.current_token is set to
-        # EOF token
-        # at this point, INTEGER PLUS INTEGER sequence of tokens
-        # has been successfully found, and the method can just
-        # return the result of adding two integers, thus
-        # effectively interpreting client input
-        if op.type== PLUS:
-            result = left.value + right.value
-        else:
-            result = left.value - right.value
-        return result
+        
+        result =  self.term()
+        while self.current_token.type in (PLUS,MINUS):
+            Token = self.current_token
+            if Token.type == PLUS:
+                self.eat(PLUS)
+                result = result + self.term()
+            elif Token.type == MINUS:
+                self.eat(MINUS)
+                result = result-self.term()
 
+        return result
+    
 def main():
     while True:
         try:
