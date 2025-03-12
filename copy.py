@@ -1,38 +1,59 @@
 # Token types
 # EOF (end-of-file) token is used to indicate that 
 # there is no more input left for lexical analysis
-INTEGER, PLUS, MINUS, EOF = 'INTEGER', 'PLUS','MINUS', 'EOF'
+INTEGER, MUL, DIV, EOF = 'INTEGER', 'MUL','DIV', 'EOF'
 
 class Token(object):
     def __init__(self, type, value):
         # token type: INTEGER, PLUS, or EOF
         self.type = type
-        # token value: 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, '+' or None
+        # token value: non-negative integer value, '*' '/' or None
         self.value = value
 
     def __str__(self):
         """String representation of the class instance.
         Examples:
         Token(INTEGER, 3)
-        Token(PLUS, '+')
+        Token(MUL, '*')
         """
-        return 'Token({}, {})'.format(self.type, repr(self.value))
+        return 'Token({type}, {value})'.format(
+            type=self.type, 
+            value=repr(self.value))
 
     def __repr__(self):
         return self.__str__()
 
-class Interpreter(object):
+class Lexer(object):
     def __init__(self, text):
-        # client string input, e.g. "3+5"
+        # client string input, e.g. "3*5", "12 / 3* 4", etc
         self.text = text
         # self.pos is an index into self.text
         self.pos = 0
         # current token instance
-        self.current_token = None
         self.current_char = self.text[self.pos]
 
     def error(self):
-        raise Exception('Error parsing input')
+        raise Exception('Invalid character')
+    
+    def advance(self):
+        """Advance the 'pos' pointer and set the 'current_char' variable."""
+        self.pos += 1
+        if self.pos > len (self.text) - 1:
+            self.current_char = None #Indicates end of input
+        else:
+            self.current_char = self.text[self.pos]
+    
+    def skip_whitespace(self):
+        while self.current_char is not None and self.current_char.isspace():
+            self.advance()
+
+    def integer(self):
+        """Return a (multiple) integer consumed from the input."""
+        result = ''
+        while self.current_char is not None and self.current_char.isdigit():
+            result += self.current_char
+            self.advance()
+        return int(result)            
         
     def get_next_token(self):
         """Lexical analyzer (also known as scanner or tokenizer)
@@ -49,71 +70,62 @@ class Interpreter(object):
             if self.current_char.isdigit():
                 return Token(INTEGER,self.integer())
 
-            if self.current_char == '+':
+            if self.current_char == '*':
                 self.advance()
-                return Token(PLUS, '+')
+                return Token(MUL, '*')
             
-            if self.current_char == '-':
+            if self.current_char == '/':
                 self.advance()
-                return Token(MINUS, '-')
+                return Token(DIV, '/')
 
             self.error()
     
         return Token(EOF, None)
 
-    def skip_whitespace(self):
-        while self.current_char is not None and self.current_char.isspace():
-            self.advance()
+class Interpreter(object):
+    def __init__(self, lexer):
+        self.lexer = lexer
+        #set current token to the first token taken from the input
+        self.current_token = self.lexer.get_next_token()
 
-    def integer(self):
-        """Return a (multiple) integer consumed from the input."""
-        result = ''
-        while self.current_char is not None and self.current_char.isdigit():
-            result += self.current_char
-            self.advance()
-        return int(result)
-    
-    def advance(self):
-        """Advance the 'pos' pointer and set the 'current_char' variable."""
-        self.pos += 1
-        if self.pos > len (self.text) - 1:
-            self.current_char = None
-        else:
-            self.current_char = self.text[self.pos]
-            
+    def error(self):
+        raise Exception('Invalid syntax')
+
     def eat(self, token_type):
         """Compare the current token type with the passed token type.
         If they match, then "eat" the current token and assign
         the next token to self.current_token, otherwise raise an exception.
         """
         if self.current_token.type == token_type:
-            self.current_token = self.get_next_token()
+            self.current_token = self.lexer.get_next_token()
         else:
             self.error()
 
-
-    def term(self):
-        """Return INTEGER Token value"""
-        Token = self.current_token
+    def factor(self):
+        """Return an INTEGER Token value. 
+        
+        factor : INTEGER
+        """
+        token = self.current_token
         self.eat(INTEGER)
-        return Token.value        
+        return token.value
 
     def expr(self):
-        """Parser / Interpreter"""
-        """expr -> INTEGER PLUS INTEGER"""
-        """expr -> INTEGER MINUS INTEGER"""
-        # set current token to the first taken from the input
-        self.current_token = self.get_next_token()
+        """Arithmi ecpression parser / interpreter.
         
-        result =  self.term()
-        while self.current_token.type in (PLUS,MINUS):
+        expr   : factor ((MUL | DIV) factor)*
+        factor : INTEGER 
+        """
+        result = self.factor()
+
+        while self.current_token.type in (MUL, DIV):
             Token = self.current_token
-            if Token.type == PLUS:
-                self.eat(PLUS)
-                result = result + self.term()
-            elif Token.type == MINUS:
-                self.eat(MINUS)
-                result = result-self.term()
+            if Token.type == MUL:
+                self.eat(MUL)
+                result = result * self.factor()
+            elif Token.type == DIV:
+                self.eat(DIV)
+                result = result // self.factor()
 
         return result
     
@@ -127,7 +139,8 @@ def main():
             break
         if not text:
             continue
-        interpreter = Interpreter(text)
+        lexer = Lexer(text)
+        interpreter = Interpreter(lexer)
         result = interpreter.expr()
         print(result)
 
