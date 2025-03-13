@@ -1,7 +1,7 @@
 # Token types
 # EOF (end-of-file) token is used to indicate that 
 # there is no more input left for lexical analysis
-INTEGER, MUL, DIV, EOF = 'INTEGER', 'MUL','DIV', 'EOF'
+INTEGER,PLUS, MINUS, MUL, DIV, EOF = ('INTEGER','PLUS','MINUS', 'MUL','DIV', 'EOF')
 
 class Token(object):
     def __init__(self, type, value):
@@ -69,6 +69,14 @@ class Lexer(object):
         
             if self.current_char.isdigit():
                 return Token(INTEGER,self.integer())
+            
+            if self.current_char == '+':
+                self.advance()
+                return Token(PLUS, '+')
+            
+            if self.current_char == '-':
+                self.advance()
+                return Token(MINUS, '-')
 
             if self.current_char == '*':
                 self.advance()
@@ -113,9 +121,28 @@ class Interpreter(object):
     def expr(self):
         """Arithmi ecpression parser / interpreter.
         
-        expr   : factor ((MUL | DIV) factor)*
+        calc> 14 + 2 * 3 - 6 / 2
+        17
+
+        expr   : factor ((PLUS | MINUS) factor)*
+        term   : factor ((MUL  | DIV)   factor)*
         factor : INTEGER 
         """
+        result = self.factor()
+
+        while self.current_token.type in (PLUS, MINUS):
+            Token = self.current_token
+            if Token.type == PLUS:
+                self.eat(PLUS)
+                result = result + self.term()
+            elif Token.type == MINUS:
+                self.eat(MINUS)
+                result = result - self.term()
+
+        return result
+    
+    def term(self):
+        """term : factor ((MUL | DIV) factor)* """
         result = self.factor()
 
         while self.current_token.type in (MUL, DIV):
@@ -128,6 +155,7 @@ class Interpreter(object):
                 result = result // self.factor()
 
         return result
+
     
 def main():
     while True:
