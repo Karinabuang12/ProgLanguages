@@ -1,7 +1,7 @@
 # Token types
 # EOF (end-of-file) token is used to indicate that 
 # there is no more input left for lexical analysis
-INTEGER,PLUS, MINUS, MUL, DIV, EOF = ('INTEGER','PLUS','MINUS', 'MUL','DIV', 'EOF')
+INTEGER,PLUS, MINUS, MUL, DIV, LPAREN, RPAREN, EOF = ('INTEGER','PLUS','MINUS', 'MUL', 'DIV','(', ')', 'EOF')
 
 class Token(object):
     def __init__(self, type, value):
@@ -14,6 +14,7 @@ class Token(object):
         """String representation of the class instance.
         Examples:
         Token(INTEGER, 3)
+        Token(PLUS, '+')
         Token(MUL, '*')
         """
         return 'Token({type}, {value})'.format(
@@ -25,7 +26,7 @@ class Token(object):
 
 class Lexer(object):
     def __init__(self, text):
-        # client string input, e.g. "3*5", "12 / 3* 4", etc
+        # client string input, e.g. "4 + 2 * 3 - 6 / 2", etc
         self.text = text
         # self.pos is an index into self.text
         self.pos = 0
@@ -85,6 +86,14 @@ class Lexer(object):
             if self.current_char == '/':
                 self.advance()
                 return Token(DIV, '/')
+            
+            if self.current_char == '(':
+                self.advance()
+                return Token(LPAREN, '(')
+            
+            if self.current_char == ')':
+                self.advance()
+                return Token(RPAREN, ')')
 
             self.error()
     
@@ -112,34 +121,18 @@ class Interpreter(object):
     def factor(self):
         """Return an INTEGER Token value. 
         
-        factor : INTEGER
+        factor : INTEGER | LPAREN expr RPAREN
         """
         token = self.current_token
-        self.eat(INTEGER)
-        return token.value
-
-    def expr(self):
-        """Arithmi ecpression parser / interpreter.
+        if token.type == INTEGER:
+            self.eat(INTEGER)
+            return token.value
         
-        calc> 14 + 2 * 3 - 6 / 2
-        17
-
-        expr   : factor ((PLUS | MINUS) factor)*
-        term   : factor ((MUL  | DIV)   factor)*
-        factor : INTEGER 
-        """
-        result = self.factor()
-
-        while self.current_token.type in (PLUS, MINUS):
-            Token = self.current_token
-            if Token.type == PLUS:
-                self.eat(PLUS)
-                result = result + self.term()
-            elif Token.type == MINUS:
-                self.eat(MINUS)
-                result = result - self.term()
-
-        return result
+        elif token.type == LPAREN:
+            self.eat(LPAREN)
+            result = self.expr()
+            self.eat(RPAREN)
+            return result
     
     def term(self):
         """term : factor ((MUL | DIV) factor)* """
@@ -153,6 +146,29 @@ class Interpreter(object):
             elif Token.type == DIV:
                 self.eat(DIV)
                 result = result // self.factor()
+
+        return result
+
+    def expr(self):
+        """Arithmi ecpression parser / interpreter.
+        
+        calc> 7 + 3 * (10 / (12 / (3 + 1) - 1_))
+        17
+
+        expr   : factor ((PLUS | MINUS) factor)*
+        term   : factor ((MUL  | DIV)   factor)*
+        factor : INTEGER | LPAREN expr RPAREN
+        """
+        result = self.term()
+
+        while self.current_token.type in (PLUS, MINUS):
+            Token = self.current_token
+            if Token.type == PLUS:
+                self.eat(PLUS)
+                result = result + self.term()
+            elif Token.type == MINUS:
+                self.eat(MINUS)
+                result = result - self.term()
 
         return result
 
