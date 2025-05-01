@@ -119,12 +119,19 @@ class Parser(object):
             self.error()
 
     def factor(self):
-        """Return an INTEGER Token value. 
-        
-        factor : INTEGER | LPAREN expr RPAREN
-        """
+        """factor : (PLUS | MINUS) factor | INTEGER | LPAREN expr RPAREN"""
         token = self.current_token
-        if token.type == INTEGER:
+        if token.type == PLUS:
+            self.eat(PLUS)
+            node = UnaryOp(token, self.factor())
+            return node
+        
+        elif token.type == MINUS:
+            self.eat(MINUS)
+            node = UnaryOp(token, self.factor())
+            return node
+        
+        elif token.type == INTEGER:
             self.eat(INTEGER)
             return Num(token)
         
@@ -133,7 +140,7 @@ class Parser(object):
             node = self.expr()
             self.eat(RPAREN)
             return node
-    
+
     def term(self):
         """term : factor ((MUL | DIV) factor)* """
         node = self.factor()
@@ -187,6 +194,11 @@ class Num(AST):
         self.token = token
         self.value = token.value
 
+class UnaryOp(AST):
+    def __init__(self, op, expr):
+        self.token = self.op = op
+        self.expr = expr
+
 class NodeVisitor(object):
     def visit(self, node):
         method_name = 'visit_' + type(node).__name__
@@ -199,6 +211,13 @@ class NodeVisitor(object):
 class Interpreter(NodeVisitor):
     def __init__(self, parser):
         self.parser = parser
+
+    def visit_UnaryOp(self, node):
+        op = node.op.type
+        if op == PLUS:
+            return + self.visit(node.expr)
+        elif op == MINUS:
+            return -self.visit(node.expr)
 
     def visit_BinOP(self, node):
         if node.op.type == PLUS:
