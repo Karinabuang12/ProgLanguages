@@ -1,8 +1,39 @@
-from collections import OrderedDict
+""" SPI - Simple Pascal Interpreter. Part 12. """
 
-INTEGER, REAL, INTEGER_CONST, REAL_CONST, PLUS, MINUS, MUL, INTEGER_DIV, FLOAT_DIV, LPAREN, RPAREN, ID, ASSIGN, BEGIN, END, SEMI, DOT, PROGRAM, VAR, COLON, COMMA, EOF = (
-    'INTEGER', 'REAL', 'INTEGER_CONST', 'REAL_CONST', 'PLUS', 'MINUS', 'MUL', 'INTEGER_DIV', 'FLOAT_DIV', '(', ')', 'ID', 'ASSIGN', 'BEGIN', 'END', 'SEMI', 'DOT', 'PROGRAM', 'VAR', ':', ',', 'EOF'
-)
+###############################################################################
+#                                                                             #
+#  LEXER                                                                      #
+#                                                                             #
+###############################################################################
+
+# Token types
+#
+# EOF (end-of-file) token is used to indicate that
+# there is no more input left for lexical analysis
+INTEGER       = 'INTEGER'
+REAL          = 'REAL'
+INTEGER_CONST = 'INTEGER_CONST'
+REAL_CONST    = 'REAL_CONST'
+PLUS          = 'PLUS'
+MINUS         = 'MINUS'
+MUL           = 'MUL'
+INTEGER_DIV   = 'INTEGER_DIV'
+FLOAT_DIV     = 'FLOAT_DIV'
+LPAREN        = 'LPAREN'
+RPAREN        = 'RPAREN'
+ID            = 'ID'
+ASSIGN        = 'ASSIGN'
+BEGIN         = 'BEGIN'
+END           = 'END'
+SEMI          = 'SEMI'
+DOT           = 'DOT'
+PROGRAM       = 'PROGRAM'
+VAR           = 'VAR'
+COLON         = 'COLON'
+COMMA         = 'COMMA'
+PROCEDURE     = 'PROCEDURE'
+EOF           = 'EOF'
+
 
 class Token(object):
     def __init__(self, type, value):
@@ -34,6 +65,7 @@ RESERVED_KEYWORDS = {
     'REAL': Token('REAL', 'REAL'),
     'BEGIN': Token('BEGIN', 'BEGIN'),
     'END': Token('END', 'END'),
+    'PROCEDURE': Token('PROCEDURE', 'PROCEDURE'),
 }
 
 class Lexer(object):
@@ -254,6 +286,12 @@ class Type(AST):
         self.value = token.value
 
 
+class ProcedureDecl(AST):
+    def __init__(self, proc_name, block_node):
+        self.proc_name = proc_name
+        self.block_node = block_node
+
+
 class Parser(object):
     def __init__(self, lexer):
         self.lexer = lexer
@@ -293,15 +331,27 @@ class Parser(object):
 
     def declarations(self):
         """declarations : VAR (variable_declaration SEMI)+
+                        | (PROCEDURE ID SEMI block SEMI)*
                         | empty
         """
         declarations = []
+
         if self.current_token.type == VAR:
             self.eat(VAR)
             while self.current_token.type == ID:
                 var_decl = self.variable_declaration()
                 declarations.extend(var_decl)
                 self.eat(SEMI)
+
+        while self.current_token.type == PROCEDURE:
+            self.eat(PROCEDURE)
+            proc_name = self.current_token.value
+            self.eat(ID)
+            self.eat(SEMI)
+            block_node = self.block()
+            proc_decl = ProcedureDecl(proc_name, block_node)
+            declarations.append(proc_decl)
+            self.eat(SEMI)
 
         return declarations
 
@@ -475,6 +525,7 @@ class Parser(object):
         block : declarations compound_statement
 
         declarations : VAR (variable_declaration SEMI)+
+                     | (PROCEDURE ID SEMI block SEMI)*
                      | empty
 
         variable_declaration : ID (COMMA ID)* COLON type_spec
@@ -513,6 +564,13 @@ class Parser(object):
 
         return node
 
+
+###############################################################################
+#                                                                             #
+#  AST visitors (walkers)                                                     #
+#                                                                             #
+###############################################################################
+
 class NodeVisitor(object):
     def visit(self, node):
         method_name = 'visit_' + type(node).__name__
@@ -537,7 +595,6 @@ class Symbol(object):
 
 class VarSymbol(Symbol):
     def __init__(self, name, type):
-        super(VarSymbol, self).__init__(name, type)
         super().__init__(name, type)
 
     def __str__(self):
@@ -548,7 +605,6 @@ class VarSymbol(Symbol):
 
 class BuiltinTypeSymbol(Symbol):
     def __init__(self, name):
-        super(BuiltinTypeSymbol, self).__init__(name)
         super().__init__(name)
 
     def __str__(self):
@@ -559,7 +615,6 @@ class BuiltinTypeSymbol(Symbol):
 
 class SymbolTable(object):
     def __init__(self):
-        self._symbols = OrderedDict()
         self._symbols = {}
         self._init_builtins()
 
@@ -637,6 +692,9 @@ class SymbolTableBuilder(NodeVisitor):
         if var_symbol is None:
             raise NameError(repr(var_name))
 
+    def visit_ProcedureDecl(self, node):
+        pass
+
 
 ###############################################################################
 #                                                                             #
@@ -647,7 +705,6 @@ class SymbolTableBuilder(NodeVisitor):
 class Interpreter(NodeVisitor):
     def __init__(self, tree):
         self.tree = tree
-        self.GLOBAL_MEMORY = OrderedDict()
         self.GLOBAL_MEMORY = {}
 
     def visit_Program(self, node):
@@ -703,6 +760,9 @@ class Interpreter(NodeVisitor):
         return var_value
 
     def visit_NoOp(self, node):
+        pass
+
+    def visit_ProcedureDecl(self, node):
         pass
 
     def interpret(self):
